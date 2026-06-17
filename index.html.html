@@ -451,7 +451,7 @@ function actualizarBarra(){
   document.getElementById('cBarra').classList.toggle('esc',n===0);
   document.getElementById('cMini').classList.toggle('esc',n===0);
 }
-function abrirPedido(){if(totalItems()===0)return;datosAplicados=false;chequearDescuento();pintarPedido();document.getElementById('ovPedido').classList.add('activo');}
+function abrirPedido(){if(totalItems()===0)return;datosAplicados=false;chequearDescuento();cargarMetodosYBarrios().then(()=>{pintarMetodos();pintarPedido();});document.getElementById('ovPedido').classList.add('activo');}
 function cerrar(id){document.getElementById(id).classList.remove('activo');if(id==='ovPedido')renderCliente();}
 
 function renderDatosRapidos(){
@@ -612,9 +612,14 @@ async function subirImagen(input,targetId){const file=input.files[0];if(!file)re
 
 window.addEventListener('hashchange',()=>{if(location.hash==='#admin')mostrarAdmin();else mostrarCliente();});
 async function cargarMetodosYBarrios(){try{const {data:mp}=await sb.from('metodos_pago').select('*').order('orden');METODOS=mp||[];const {data:cfg}=await sb.from('config').select('barrios,numero_cuenta,titular_cuenta,banco_cuenta').single();if(cfg){BARRIOS=cfg.barrios||[];CONFIG=cfg;}}catch(e){}}
-function seleccionarMetodo(id,nombre){clientePedido.metodo_id=id;clientePedido.metodo_nombre=nombre;document.querySelectorAll('#metodos-pago-cliente .tipo').forEach(t=>t.classList.remove('sel'));const el=document.querySelector(`[data-metodo="${id}"]`);if(el)el.classList.add('sel');pintarCamposDinamicos();pintarBarrios()}
+function pintarMetodos(){
+  const mpDiv=document.getElementById('metodos-pago-cliente');
+  if(!mpDiv)return;
+  if(METODOS.length===0){mpDiv.innerHTML='<div style="padding:10px;color:var(--apagado);font-size:.85rem">Cargando métodos...</div>';return;}
+  mpDiv.innerHTML=METODOS.map(m=>`<div class="tipo" data-metodo="${m.id}" onclick="seleccionarMetodo(${m.id},'${m.nombre}')"><span class="ic">💳</span>${m.nombre}</div>`).join('');
+}
+
 function pintarCamposDinamicos(){const dinDiv=document.getElementById('campos-metodo-dinamicos');if(!dinDiv)return;dinDiv.innerHTML='';const m=METODOS.find(x=>x.id===clientePedido.metodo_id);if(!m)return;if(m.nombre==='Efectivo'){dinDiv.innerHTML=`<div class="campo"><label>¿Con cuánto va a pagar? *</label><input id="cEfectivo" type="number" placeholder="Ej: 50000" min="1"></div>`}else if(m.nombre==='Transferencia'){dinDiv.innerHTML=`<div style="background:var(--fondo);border-radius:12px;padding:14px;margin-top:12px;font-size:.85rem"><strong>${CONFIG.banco_cuenta||'Bancolombia'}</strong><div style="margin:6px 0">Nº ${CONFIG.numero_cuenta||'XXX XXX XXX XXXX'}</div><div>${CONFIG.titular_cuenta||'Titular'}</div></div>`}}
-function pintarBarrios(){const bDiv=document.getElementById('barrio-container');if(!bDiv)return;if(BARRIOS.length===0){bDiv.innerHTML=`<input type="text" id="cBarrio" placeholder="Escribe tu barrio">`;return}let html=`<select id="cBarrio"><option value="">-- Selecciona --</option>`;html+=BARRIOS.map(b=>`<option value="${b}">${b}</option>`).join('');html+=`<option value="__otro">Otro...</option></select><input type="text" id="cBarrioLibre" placeholder="Escribe aquí" style="display:none;margin-top:8px">`;bDiv.innerHTML=html;const sel=document.getElementById('cBarrio');if(sel)sel.onchange=e=>{if(e.target.value==='__otro'){document.getElementById('cBarrioLibre').style.display='block';document.getElementById('cBarrioLibre').focus()}else{document.getElementById('cBarrioLibre').style.display='none'}}}
 arrancar().then(()=>{ if(location.hash!=='#admin') setTimeout(mostrarPopupCerrado,400); });
 </script>
 </body>
