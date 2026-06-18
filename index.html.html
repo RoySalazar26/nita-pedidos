@@ -328,6 +328,7 @@ function aplicarTema(){
 async function arrancar(){
   try{ await cargarTodo(); }
   catch(e){ document.getElementById('cargando').innerHTML='<div style="padding:20px;text-align:center">No se pudo conectar.<br><small>'+(e.message||e)+'</small></div>'; return; }
+  await cargarMetodosYBarrios();
   aplicarTema();
   document.getElementById('cargando').classList.add('oculto');
   if(location.hash==='#admin') mostrarAdmin(); else mostrarCliente();
@@ -451,7 +452,15 @@ function actualizarBarra(){
   document.getElementById('cBarra').classList.toggle('esc',n===0);
   document.getElementById('cMini').classList.toggle('esc',n===0);
 }
-function abrirPedido(){if(totalItems()===0)return;datosAplicados=false;chequearDescuento();cargarMetodosYBarrios().then(()=>{pintarMetodos();pintarPedido();});document.getElementById('ovPedido').classList.add('activo');}
+async function abrirPedido(){
+  if(totalItems()===0)return;
+  datosAplicados=false;
+  document.getElementById('ovPedido').classList.add('activo');
+  chequearDescuento();
+  pintarPedido();
+  await cargarMetodosYBarrios();
+  pintarMetodos();
+}
 function cerrar(id){document.getElementById(id).classList.remove('activo');if(id==='ovPedido')renderCliente();}
 
 function renderDatosRapidos(){
@@ -480,7 +489,7 @@ function pintarPedido(){
   document.getElementById('filaDom').classList.toggle('oculto',tipoPedido!=='A domicilio');
   validar();
 }
-function elegirTipo(el){document.querySelectorAll('#ovPedido .tipo').forEach(t=>t.classList.remove('sel'));el.classList.add('sel');tipoPedido=el.dataset.tipo;document.getElementById('campoDir').classList.toggle('oculto',tipoPedido!=='A domicilio');pintarPedido();}
+function elegirTipo(el){document.querySelectorAll('#ovPedido .tipo').forEach(t=>t.classList.remove('sel'));el.classList.add('sel');tipoPedido=el.dataset.tipo;const esDom=tipoPedido==='A domicilio';document.getElementById('campoDir').classList.toggle('oculto',!esDom);document.getElementById('campoBarrio').classList.toggle('oculto',!esDom);if(esDom)pintarBarrios();pintarPedido();}
 ['cNombre','cTel','cDirInput'].forEach(id=>document.getElementById(id).addEventListener('input',validar));
 document.getElementById('cTel').addEventListener('blur',()=>{chequearDescuento();});
 function validar(){const n=document.getElementById('cNombre').value.trim(),t=document.getElementById('cTel').value.trim(),d=document.getElementById('cDirInput').value.trim();let ok=totalItems()>0&&tipoPedido&&n&&t;if(tipoPedido==='A domicilio'&&!d)ok=false;document.getElementById('btnConfirmar').disabled=!ok;}
@@ -539,12 +548,25 @@ async function guardarUbicacionDelMapa(){
 }
 
 async function confirmarPedido(){
-  const btn=document.getElementById('btnConfirmar');btn.disabled=true;btn.textContent='Enviando…';
+  const btn=document.getElementById('btnConfirmar');
   const nombre=document.getElementById('cNombre').value.trim(),tel=document.getElementById('cTel').value.trim();
   const dir=document.getElementById('cDirInput').value.trim(),notas=document.getElementById('cNotas').value.trim();
+  if(!metodoSel){toast('Elige un método de pago',true);return;}
+  let barrio='';
+  if(tipoPedido==='A domicilio'){
+    const sel=document.getElementById('cBarrio');
+    barrio=sel?(sel.value==='__otro'?(document.getElementById('cBarrioLibre').value.trim()):sel.value):'';
+    if(CFG.barrio_obligatorio!==false && !barrio){toast('Indica el barrio',true);return;}
+  }
+  let efectivoTxt='';
+  if(metodoSel.nombre==='Efectivo'){
+    const efe=parseInt(document.getElementById('cEfectivo')?.value)||0;
+    if(efe>0){const vuelto=efe-totalFinal();efectivoTxt=`Paga con: ${pesos(efe)} · Vuelto: ${pesos(vuelto>0?vuelto:0)}`;}
+  }
+  btn.disabled=true;btn.textContent='Enviando…';
   const cerrado=!estadoAbierto().abierto; const desc=descuento();
   const detalle=items().map(it=>({nombre:it.prod.nombre,qty:it.qty,precio:precioUnit(it),opciones:it.opciones.map(o=>o.qty>1?o.nombre+' x'+o.qty:o.nombre)}));
-  const pedido={tipo:tipoPedido,cliente:nombre,telefono:tel,direccion:tipoPedido==='A domicilio'?dir:'',notas:(cerrado?'[PROGRAMADO - cerrado] ':'')+notas,items:detalle,subtotal:subtotal(),domicilio:domicilio(),total:totalFinal(),estado:'nuevo'};
+  const pedido={tipo:tipoPedido,cliente:nombre,telefono:tel,direccion:tipoPedido==='A domicilio'?dir:'',notas:(cerrado?'[PROGRAMADO - cerrado] ':'')+notas,items:detalle,subtotal:subtotal(),domicilio:domicilio(),total:totalFinal(),estado:'nuevo',metodo_pago:metodoSel.nombre,barrio:barrio,efectivo:efectivoTxt};
   if(desc>0) pedido.descuento=desc;
   const {error}=await sb.from('pedidos').insert(pedido);
   if(error){toast('Error al guardar: '+error.message,true);btn.disabled=false;btn.textContent='✅ Confirmar pedido';return;}
@@ -553,7 +575,9 @@ async function confirmarPedido(){
     let m=`🍔 *NUEVO PEDIDO - NITA*\n`;
     if(cerrado)m+=`⏰ *PEDIDO PROGRAMADO (cerrado)*\n`;
     m+=`————————————\n*Tipo:* ${tipoPedido}\n*Cliente:* ${nombre}\n*Teléfono:* ${tel}\n`;
-    if(tipoPedido==='A domicilio')m+=`*Dirección:* ${dir}\n`;
+    if(tipoPedido==='A domicilio'){m+=`*Dirección:* ${dir}\n`;if(barrio)m+=`*Barrio:* ${barrio}\n`;m+=`📍 *ENVIAR UBICACIÓN ACTUAL*\n`;}
+    m+=`*Pago:* ${metodoSel.nombre}\n`;
+    if(efectivoTxt)m+=`💵 ${efectivoTxt}\n`;
     m+=`\n*Pedido:*\n`;
     detalle.forEach(d=>{m+=`• ${d.qty}x ${d.nombre} — ${pesos(d.qty*d.precio)}\n`;if(d.opciones.length)m+=`   (${d.opciones.join(', ')})\n`;});
     if(notas)m+=`\n*Notas:* ${notas}\n`;
@@ -563,7 +587,7 @@ async function confirmarPedido(){
     m+=`*TOTAL: ${pesos(pedido.total)}*`;
     window.open(`https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent(m)}`,'_blank');
   }
-  carrito={};tipoPedido=null;descuentoPct=0;cerrar('ovPedido');btn.textContent='✅ Confirmar pedido';toast('¡Pedido enviado! 🎉');
+  carrito={};tipoPedido=null;descuentoPct=0;metodoSel=null;cerrar('ovPedido');btn.textContent='✅ Confirmar pedido';toast('¡Pedido enviado! 🎉');
 }
 
 function abrirHorarios(){const cont=document.getElementById('horariosLista');const hoy=bogotaNow().dia;cont.innerHTML=ORDEN_DIAS.map(d=>{const h=horarios()[d];const txt=h&&h.activo?`${h.abre} – ${h.cierra}`:'Cerrado';return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--linea);${d===hoy?'font-weight:700':''}"><span>${DIAS_NOM[d]}${d===hoy?' (hoy)':''}</span><span>${txt}</span></div>`;}).join('');document.getElementById('ovHorarios').classList.add('activo');}
@@ -611,15 +635,49 @@ async function guardarAjustes(){const horarios={};ORDEN_DIAS.forEach(d=>{horario
 async function subirImagen(input,targetId){const file=input.files[0];if(!file)return;toast('Subiendo imagen…');const ext=(file.name.split('.').pop()||'jpg');const path='img_'+Date.now()+'.'+ext;const {error}=await sb.storage.from('imagenes').upload(path,file,{upsert:true});if(error){toast('Error al subir: '+error.message,true);return;}const {data}=sb.storage.from('imagenes').getPublicUrl(path);document.getElementById(targetId).value=data.publicUrl;document.getElementById('prev'+targetId).innerHTML=`<img src="${data.publicUrl}">`;toast('Imagen lista ✓');}
 
 window.addEventListener('hashchange',()=>{if(location.hash==='#admin')mostrarAdmin();else mostrarCliente();});
-async function cargarMetodosYBarrios(){try{const {data:mp}=await sb.from('metodos_pago').select('*').order('orden');METODOS=mp||[];const {data:cfg}=await sb.from('config').select('barrios,numero_cuenta,titular_cuenta,banco_cuenta').single();if(cfg){BARRIOS=cfg.barrios||[];CONFIG=cfg;}}catch(e){}}
+async function cargarMetodosYBarrios(){
+  try{
+    const {data:mp,error:e1}=await sb.from('metodos_pago').select('*').eq('activo',true).order('orden');
+    if(e1)console.log('Error métodos:',e1);
+    METODOS=mp||[];
+  }catch(e){console.log('Catch métodos:',e);METODOS=[];}
+  try{
+    const {data:cfg}=await sb.from('config').select('barrios,numero_cuenta,titular_cuenta,banco_cuenta').eq('id',1).single();
+    if(cfg){BARRIOS=cfg.barrios||[];CONFIG=cfg;}
+  }catch(e){console.log('Catch config:',e);}
+}
 function pintarMetodos(){
   const mpDiv=document.getElementById('metodos-pago-cliente');
   if(!mpDiv)return;
-  if(METODOS.length===0){mpDiv.innerHTML='<div style="padding:10px;color:var(--apagado);font-size:.85rem">Cargando métodos...</div>';return;}
-  mpDiv.innerHTML=METODOS.map(m=>`<div class="tipo" data-metodo="${m.id}" onclick="seleccionarMetodo(${m.id},'${m.nombre}')"><span class="ic">💳</span>${m.nombre}</div>`).join('');
+  if(METODOS.length===0){mpDiv.innerHTML='<div style="padding:10px;color:var(--apagado);font-size:.85rem">No hay métodos configurados</div>';return;}
+  mpDiv.innerHTML=METODOS.map(m=>`<div class="tipo" data-metodo="${m.id}" onclick="seleccionarMetodo(${m.id})"><span class="ic">💳</span>${m.nombre}</div>`).join('');
 }
-
-function pintarCamposDinamicos(){const dinDiv=document.getElementById('campos-metodo-dinamicos');if(!dinDiv)return;dinDiv.innerHTML='';const m=METODOS.find(x=>x.id===clientePedido.metodo_id);if(!m)return;if(m.nombre==='Efectivo'){dinDiv.innerHTML=`<div class="campo"><label>¿Con cuánto va a pagar? *</label><input id="cEfectivo" type="number" placeholder="Ej: 50000" min="1"></div>`}else if(m.nombre==='Transferencia'){dinDiv.innerHTML=`<div style="background:var(--fondo);border-radius:12px;padding:14px;margin-top:12px;font-size:.85rem"><strong>${CONFIG.banco_cuenta||'Bancolombia'}</strong><div style="margin:6px 0">Nº ${CONFIG.numero_cuenta||'XXX XXX XXX XXXX'}</div><div>${CONFIG.titular_cuenta||'Titular'}</div></div>`}}
+let metodoSel=null;
+function seleccionarMetodo(id){
+  const m=METODOS.find(x=>x.id===id); if(!m)return;
+  metodoSel=m;
+  document.querySelectorAll('#metodos-pago-cliente .tipo').forEach(t=>t.classList.remove('sel'));
+  const el=document.querySelector('[data-metodo="'+id+'"]'); if(el)el.classList.add('sel');
+  pintarCamposDinamicos();
+}
+function pintarCamposDinamicos(){
+  const dinDiv=document.getElementById('campos-metodo-dinamicos'); if(!dinDiv)return;
+  dinDiv.innerHTML='';
+  if(!metodoSel)return;
+  if(metodoSel.nombre==='Efectivo'){
+    dinDiv.innerHTML=`<div class="campo"><label>¿Con cuánto va a pagar? (para el vuelto)</label><input id="cEfectivo" type="number" inputmode="numeric" placeholder="Ej: 50000"></div>`;
+  }else if(metodoSel.nombre==='Transferencia'){
+    dinDiv.innerHTML=`<div style="background:var(--fondo);border-radius:12px;padding:14px;margin-top:12px;font-size:.9rem;line-height:1.6"><strong>📲 Datos para transferir:</strong><br>${CONFIG.banco_cuenta||'Ahorros Bancolombia'}<br>Nº ${CONFIG.numero_cuenta||'(configurar en admin)'}<br>${CONFIG.titular_cuenta||''}</div>`;
+  }
+}
+function pintarBarrios(){
+  const bDiv=document.getElementById('barrio-container'); if(!bDiv)return;
+  if(BARRIOS.length===0){bDiv.innerHTML='<input type="text" id="cBarrio" placeholder="Escribe tu barrio">';return;}
+  let h='<select id="cBarrio"><option value="">-- Selecciona --</option>'+BARRIOS.map(b=>`<option value="${b}">${b}</option>`).join('')+'<option value="__otro">Otro...</option></select><input type="text" id="cBarrioLibre" placeholder="Escribe tu barrio" style="display:none;margin-top:8px">';
+  bDiv.innerHTML=h;
+  const sel=document.getElementById('cBarrio');
+  if(sel)sel.onchange=e=>{const lib=document.getElementById('cBarrioLibre');if(e.target.value==='__otro'){lib.style.display='block';lib.focus();}else{lib.style.display='none';}};
+}
 arrancar().then(()=>{ if(location.hash!=='#admin') setTimeout(mostrarPopupCerrado,400); });
 </script>
 </body>
