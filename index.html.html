@@ -683,7 +683,7 @@ function tabAjustes(){const h=horarios();document.getElementById('admBody').inne
 <div class="fila-btns" style="margin-top:16px"><button class="btn verde" onclick="guardarAjustes()">Guardar todo</button></div>`;}
 async function guardarAjustes(){const horarios={};ORDEN_DIAS.forEach(d=>{horarios[d]={activo:document.getElementById('h_'+d+'_a').checked,abre:document.getElementById('h_'+d+'_o').value||'12:00',cierra:document.getElementById('h_'+d+'_c').value||'22:00'};});const obj={id:1,nombre_negocio:document.getElementById('aNom').value.trim(),direccion:document.getElementById('aDir').value.trim(),whatsapp:document.getElementById('aWa').value.trim(),costo_domicilio:parseInt(document.getElementById('aDom').value)||0,logo_url:document.getElementById('aLogo').value,hormiga_url:document.getElementById('aHormiga').value,sonido_url:document.getElementById('aSonido').value,color_principal:document.getElementById('aColP').value,color_header:document.getElementById('aColH').value,descuento_activo:document.getElementById('aDescAct').checked,descuento_porcentaje:parseInt(document.getElementById('aDescPct').value)||10,banco_cuenta:document.getElementById('aBanco').value.trim(),numero_cuenta:document.getElementById('aNumCta').value.trim(),titular_cuenta:document.getElementById('aTitular').value.trim(),barrio_obligatorio:document.getElementById('aBarrioObl').checked,barrios:document.getElementById('aBarrios').value.split('\n').map(b=>b.trim()).filter(b=>b),horarios,mensaje_cerrado:document.getElementById('aMsg').value.trim()};const {error}=await sb.from('config').upsert(obj);if(error){toast('Error: '+error.message,true);return;}toast('Ajustes guardados');await recargar();}
 async function subirImagen(input,targetId){const file=input.files[0];if(!file)return;toast('Subiendo imagen…');const ext=(file.name.split('.').pop()||'jpg');const path='img_'+Date.now()+'.'+ext;const {error}=await sb.storage.from('imagenes').upload(path,file,{upsert:true});if(error){toast('Error al subir: '+error.message,true);return;}const {data}=sb.storage.from('imagenes').getPublicUrl(path);document.getElementById(targetId).value=data.publicUrl;document.getElementById('prev'+targetId).innerHTML=`<img src="${data.publicUrl}">`;toast('Imagen lista ✓');}
-async function subirSonido(input){const file=input.files[0];if(!file)return;toast('Subiendo sonido…');const ext=(file.name.split('.').pop()||'mp3');const path='sonido_'+Date.now()+'.'+ext;const {error}=await sb.storage.from('imagenes').upload(path,file,{upsert:true});if(error){toast('Error al subir: '+error.message,true);return;}const {data}=sb.storage.from('imagenes').getPublicUrl(path);document.getElementById('aSonido').value=data.publicUrl;document.getElementById('prevaSonido').textContent='✓ Sonido cargado';toast('Sonido listo ✓');}
+async function subirSonido(input){const file=input.files[0];if(!file)return;toast('Subiendo sonido…');const ext=(file.name.split('.').pop()||'mp3');const path='sonido_'+Date.now()+'.'+ext;const {error}=await sb.storage.from('imagenes').upload(path,file,{upsert:true,contentType:file.type||'audio/mpeg'});if(error){toast('Error al subir: '+error.message,true);document.getElementById('prevaSonido').textContent='❌ Error: '+error.message;return;}const {data}=sb.storage.from('imagenes').getPublicUrl(path);document.getElementById('aSonido').value=data.publicUrl;document.getElementById('prevaSonido').textContent='✓ Sonido cargado (dale Guardar todo)';const a=document.getElementById('audioPedido');if(a){a.src=data.publicUrl;CFG.sonido_url=data.publicUrl;}toast('Sonido listo ✓ — dale Guardar todo abajo');}
 
 window.addEventListener('hashchange',()=>{if(location.hash==='#admin')mostrarAdmin();else mostrarCliente();});
 async function cargarMetodosYBarrios(){
@@ -729,13 +729,28 @@ function pintarBarrios(){
   const sel=document.getElementById('cBarrio');
   if(sel)sel.onchange=e=>{const lib=document.getElementById('cBarrioLibre');if(e.target.value==='__otro'){lib.style.display='block';lib.focus();}else{lib.style.display='none';}};
 }
-let ultimoPedidoId=null, sonidoActivado=false, intervaloVigilancia=null;
+let ultimoPedidoId=null, sonidoActivado=false, intervaloVigilancia=null, audioCtx=null;
 function activarSonido(){
   sonidoActivado=true;
+  try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}
   const a=document.getElementById('audioPedido');
-  if(a){a.play().then(()=>{a.pause();a.currentTime=0;}).catch(()=>{});}
-  toast('🔔 Alertas de sonido activadas');
-  const btn=document.getElementById('btnSonido'); if(btn)btn.classList.add('oculto');
+  if(a&&CFG.sonido_url){a.src=CFG.sonido_url;a.play().then(()=>{a.pause();a.currentTime=0;}).catch(()=>{});}
+  beepInterno();
+  toast('🔔 Alertas activadas');
+  const btn=document.getElementById('btnSonido'); if(btn){btn.textContent='🔔 Sonido ACTIVADO ✓';btn.classList.remove('azul');btn.classList.add('verde');}
+}
+function beepInterno(){
+  if(!audioCtx)return;
+  try{
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.connect(g);g.connect(audioCtx.destination);
+    o.type='square';o.frequency.value=880;
+    g.gain.setValueAtTime(.0001,audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.4,audioCtx.currentTime+.05);
+    g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+.5);
+    o.start();o.stop(audioCtx.currentTime+.5);
+    setTimeout(()=>{const o2=audioCtx.createOscillator(),g2=audioCtx.createGain();o2.connect(g2);g2.connect(audioCtx.destination);o2.type='square';o2.frequency.value=1100;g2.gain.setValueAtTime(.0001,audioCtx.currentTime);g2.gain.exponentialRampToValueAtTime(.4,audioCtx.currentTime+.05);g2.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+.5);o2.start();o2.stop(audioCtx.currentTime+.5);},300);
+  }catch(e){}
 }
 async function vigilarPedidos(){
   try{
@@ -750,8 +765,9 @@ async function vigilarPedidos(){
 function sonarAlerta(){
   if(!sonidoActivado)return;
   const a=document.getElementById('audioPedido');
-  if(a){a.currentTime=0;a.play().catch(()=>{});}
-  if(navigator.vibrate)navigator.vibrate([300,100,300]);
+  if(a&&CFG.sonido_url){a.src=CFG.sonido_url;a.currentTime=0;a.play().then(()=>{}).catch(()=>beepInterno());}
+  else{beepInterno();}
+  if(navigator.vibrate)navigator.vibrate([400,150,400,150,400]);
   toast('🔔 ¡NUEVO PEDIDO!');
 }
 function iniciarVigilancia(){
