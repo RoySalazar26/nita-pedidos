@@ -29,10 +29,21 @@
   @keyframes gira{to{transform:rotate(360deg)}}
 
   #cliente{padding-bottom:96px;max-width:600px;margin:0 auto;background:var(--fondo)}
-  header.top{background:var(--carbon);color:#fff;padding:22px 18px 18px;text-align:center}
-  header.top img.logo{height:62px;width:62px;object-fit:cover;border-radius:50%;margin-bottom:10px;border:3px solid rgba(255,255,255,.15)}
-  header.top .marca{font-family:'Fredoka',sans-serif;font-weight:700;font-size:1.7rem;line-height:1.05}
-  header.top .dir{font-size:.82rem;color:#c9bdad;margin-top:5px}
+  header.top{background:var(--carbon);color:#fff;padding:18px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center}
+  header.top .hero-izq{display:flex;align-items:center;gap:6px;flex-shrink:0}
+  header.top .hero-logo{height:80px;width:auto;object-fit:contain}
+  header.top .hero-hormiga{height:95px;width:auto;object-fit:contain}
+  header.top .hero-der{display:flex;flex-direction:column;gap:8px;align-items:flex-start;min-width:200px;flex:1;max-width:340px}
+  header.top .hero-promo{font-family:'Fredoka',sans-serif;font-weight:600;font-size:1.15rem;line-height:1.2;color:#fff}
+  header.top .dir{font-size:.82rem;color:#c9bdad}
+  .marca-oculta{display:none}
+  @media(max-width:520px){
+    header.top{padding:14px 12px;gap:8px}
+    header.top .hero-logo{height:60px}
+    header.top .hero-hormiga{height:72px}
+    header.top .hero-der{min-width:0;max-width:none}
+    header.top .hero-promo{font-size:1rem}
+  }
   .estado-pill{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:.82rem;font-weight:600;padding:6px 13px;border-radius:999px;background:rgba(255,255,255,.1);cursor:pointer}
   .estado-pill.abierto{background:rgba(47,158,68,.22);color:#9be3ab}
   .estado-pill.cerrado{background:rgba(199,51,43,.22);color:#f0a8a3}
@@ -182,11 +193,17 @@
 
 <div id="cliente" class="oculto">
   <header class="top">
-    <img class="logo oculto" id="cLogo" alt="logo">
-    <div class="marca" id="cMarca">🍔 Nita</div>
-    <div class="dir" id="cDir"></div>
-    <div class="estado-pill" id="cEstado" onclick="abrirHorarios()"></div>
+    <div class="hero-izq">
+      <img class="hero-logo oculto" id="cLogo" alt="logo">
+      <img class="hero-hormiga oculto" id="cHormiga" alt="mascota">
+    </div>
+    <div class="hero-der">
+      <div class="hero-promo oculto" id="cPromo"></div>
+      <div class="estado-pill" id="cEstado" onclick="abrirHorarios()"></div>
+      <div class="dir" id="cDir"></div>
+    </div>
   </header>
+  <div class="marca-oculta oculto" id="cMarca">🍔 Nita</div>
   <nav class="chips" id="cChips"></nav>
   <div class="minicart esc" id="cMini" onclick="abrirPedido()"><span><span id="bCnt2">0</span> producto(s) · <b id="bTot2">$0</b></span><span class="vp">Ver pedido →</span></div>
   <main class="menu" id="cMenu"></main>
@@ -344,6 +361,10 @@ function renderCliente(){
   document.title=(CFG.nombre_negocio||"Nita")+" · Pedir en línea";
   const logo=document.getElementById('cLogo');
   if(CFG.logo_url){logo.src=CFG.logo_url;logo.classList.remove('oculto');}else logo.classList.add('oculto');
+  const horm=document.getElementById('cHormiga');
+  if(CFG.hormiga_url){horm.src=CFG.hormiga_url;horm.classList.remove('oculto');}else horm.classList.add('oculto');
+  const promo=document.getElementById('cPromo');
+  if(CFG.descuento_activo&&CFG.descuento_porcentaje>0){promo.textContent=`Gánate un ${CFG.descuento_porcentaje}% de descuento en tu primera compra`;promo.classList.remove('oculto');}else promo.classList.add('oculto');
   const st=estadoAbierto(); const pill=document.getElementById('cEstado');
   if(st.abierto){pill.className='estado-pill abierto';pill.innerHTML=`🟢 Abierto ahora · ${st.hoy.abre}–${st.hoy.cierra}`;}
   else{pill.className='estado-pill cerrado';pill.innerHTML= st.hoy&&st.hoy.activo?`🔴 Cerrado · hoy ${st.hoy.abre}–${st.hoy.cierra}`:`🔴 Cerrado hoy`;}
@@ -633,7 +654,7 @@ function pintarOpcsMod(){document.getElementById('mOpcsList').innerHTML=modOpcs.
 function agregarOpcMod(){const n=document.getElementById('moNom').value.trim();if(!n)return;modOpcs.push({nombre:n,precio:parseInt(document.getElementById('moPre').value)||0});document.getElementById('moNom').value='';document.getElementById('moPre').value='';pintarOpcsMod();}
 async function guardarMod(id){const obj={nombre:document.getElementById('mNom').value.trim(),obligatorio:document.getElementById('mObl').checked,tipo:document.getElementById('mTipo').value,min:parseInt(document.getElementById('mMin').value)||0,max:parseInt(document.getElementById('mMax').value)||1};if(!obj.nombre){toast('Ponle nombre',true);return;}let gid=id;if(id){await sb.from('modificadores').update(obj).eq('id',id);await sb.from('modificador_opciones').delete().eq('modificador_id',id);}else{const {data,error}=await sb.from('modificadores').insert(obj).select().single();if(error){toast(error.message,true);return;}gid=data.id;}if(modOpcs.length){await sb.from('modificador_opciones').insert(modOpcs.map(o=>({modificador_id:gid,nombre:o.nombre,precio:o.precio})));}toast('Guardado');await recargar();}
 async function borrarMod(id){if(!confirm('¿Borrar grupo?'))return;await sb.from('modificadores').delete().eq('id',id);toast('Borrado');await recargar();}
-function tabAjustes(){const h=horarios();document.getElementById('admBody').innerHTML=`<h3 style="font-family:Fredoka;color:var(--carbon);margin-bottom:6px">Datos del negocio</h3><div class="campo"><label>Nombre del negocio</label><input id="aNom" value="${(CFG.nombre_negocio||'').replace(/"/g,'&quot;')}"></div><div class="campo"><label>Dirección</label><input id="aDir" value="${(CFG.direccion||'').replace(/"/g,'&quot;')}"></div><div class="campo"><label>WhatsApp (con 57, sin espacios)</label><input id="aWa" value="${CFG.whatsapp||''}"></div><div class="campo"><label>Costo del domicilio (COP)</label><input id="aDom" type="number" value="${CFG.costo_domicilio||0}"></div><div class="campo"><label>Logo del negocio</label><input type="file" accept="image/*" onchange="subirImagen(this,'aLogo')"><div class="preview" id="prevaLogo">${CFG.logo_url?`<img src="${CFG.logo_url}">`:''}</div><input type="hidden" id="aLogo" value="${CFG.logo_url||''}"></div>
+function tabAjustes(){const h=horarios();document.getElementById('admBody').innerHTML=`<h3 style="font-family:Fredoka;color:var(--carbon);margin-bottom:6px">Datos del negocio</h3><div class="campo"><label>Nombre del negocio</label><input id="aNom" value="${(CFG.nombre_negocio||'').replace(/"/g,'&quot;')}"></div><div class="campo"><label>Dirección</label><input id="aDir" value="${(CFG.direccion||'').replace(/"/g,'&quot;')}"></div><div class="campo"><label>WhatsApp (con 57, sin espacios)</label><input id="aWa" value="${CFG.whatsapp||''}"></div><div class="campo"><label>Costo del domicilio (COP)</label><input id="aDom" type="number" value="${CFG.costo_domicilio||0}"></div><div class="campo"><label>Logo del negocio</label><input type="file" accept="image/*" onchange="subirImagen(this,'aLogo')"><div class="preview" id="prevaLogo">${CFG.logo_url?`<img src="${CFG.logo_url}">`:''}</div><input type="hidden" id="aLogo" value="${CFG.logo_url||''}"></div><div class="campo"><label>Hormiga (mascota)</label><input type="file" accept="image/*" onchange="subirImagen(this,'aHormiga')"><div class="preview" id="prevaHormiga">${CFG.hormiga_url?`<img src="${CFG.hormiga_url}">`:''}</div><input type="hidden" id="aHormiga" value="${CFG.hormiga_url||''}"></div>
 
 <h3 style="font-family:Fredoka;color:var(--carbon);margin:22px 0 8px">🎨 Colores de la tienda</h3>
 <div class="colorrow"><input type="color" id="aColP" value="${CFG.color_principal||'#C7332B'}"><div><b>Color principal</b><br><small style="color:var(--apagado)">Botones, precios y carrito</small></div></div>
@@ -657,7 +678,7 @@ function tabAjustes(){const h=horarios();document.getElementById('admBody').inne
 <h3 style="font-family:Fredoka;color:var(--carbon);margin:22px 0 8px">Horarios de atención</h3><p style="color:var(--apagado);font-size:.82rem;margin-bottom:10px">Desmarca un día para dejarlo cerrado. Si cierras pasada la medianoche, también funciona.</p>${ORDEN_DIAS.map(d=>`<div class="diafila"><input type="checkbox" id="h_${d}_a" ${h[d]&&h[d].activo?'checked':''}><span class="dn">${DIAS_NOM[d]}</span><input type="time" id="h_${d}_o" value="${(h[d]&&h[d].abre)||'12:00'}"><span>a</span><input type="time" id="h_${d}_c" value="${(h[d]&&h[d].cierra)||'22:00'}"></div>`).join('')}<div class="campo"><label>Mensaje cuando está cerrado</label><textarea id="aMsg" placeholder="Ej: Ya cerramos por hoy, pero deja tu pedido y lo preparamos apenas abramos 🍔">${CFG.mensaje_cerrado||''}</textarea></div>
 
 <div class="fila-btns" style="margin-top:16px"><button class="btn verde" onclick="guardarAjustes()">Guardar todo</button></div>`;}
-async function guardarAjustes(){const horarios={};ORDEN_DIAS.forEach(d=>{horarios[d]={activo:document.getElementById('h_'+d+'_a').checked,abre:document.getElementById('h_'+d+'_o').value||'12:00',cierra:document.getElementById('h_'+d+'_c').value||'22:00'};});const obj={id:1,nombre_negocio:document.getElementById('aNom').value.trim(),direccion:document.getElementById('aDir').value.trim(),whatsapp:document.getElementById('aWa').value.trim(),costo_domicilio:parseInt(document.getElementById('aDom').value)||0,logo_url:document.getElementById('aLogo').value,color_principal:document.getElementById('aColP').value,color_header:document.getElementById('aColH').value,descuento_activo:document.getElementById('aDescAct').checked,descuento_porcentaje:parseInt(document.getElementById('aDescPct').value)||10,banco_cuenta:document.getElementById('aBanco').value.trim(),numero_cuenta:document.getElementById('aNumCta').value.trim(),titular_cuenta:document.getElementById('aTitular').value.trim(),barrio_obligatorio:document.getElementById('aBarrioObl').checked,barrios:document.getElementById('aBarrios').value.split('\n').map(b=>b.trim()).filter(b=>b),horarios,mensaje_cerrado:document.getElementById('aMsg').value.trim()};const {error}=await sb.from('config').upsert(obj);if(error){toast('Error: '+error.message,true);return;}toast('Ajustes guardados');await recargar();}
+async function guardarAjustes(){const horarios={};ORDEN_DIAS.forEach(d=>{horarios[d]={activo:document.getElementById('h_'+d+'_a').checked,abre:document.getElementById('h_'+d+'_o').value||'12:00',cierra:document.getElementById('h_'+d+'_c').value||'22:00'};});const obj={id:1,nombre_negocio:document.getElementById('aNom').value.trim(),direccion:document.getElementById('aDir').value.trim(),whatsapp:document.getElementById('aWa').value.trim(),costo_domicilio:parseInt(document.getElementById('aDom').value)||0,logo_url:document.getElementById('aLogo').value,hormiga_url:document.getElementById('aHormiga').value,color_principal:document.getElementById('aColP').value,color_header:document.getElementById('aColH').value,descuento_activo:document.getElementById('aDescAct').checked,descuento_porcentaje:parseInt(document.getElementById('aDescPct').value)||10,banco_cuenta:document.getElementById('aBanco').value.trim(),numero_cuenta:document.getElementById('aNumCta').value.trim(),titular_cuenta:document.getElementById('aTitular').value.trim(),barrio_obligatorio:document.getElementById('aBarrioObl').checked,barrios:document.getElementById('aBarrios').value.split('\n').map(b=>b.trim()).filter(b=>b),horarios,mensaje_cerrado:document.getElementById('aMsg').value.trim()};const {error}=await sb.from('config').upsert(obj);if(error){toast('Error: '+error.message,true);return;}toast('Ajustes guardados');await recargar();}
 async function subirImagen(input,targetId){const file=input.files[0];if(!file)return;toast('Subiendo imagen…');const ext=(file.name.split('.').pop()||'jpg');const path='img_'+Date.now()+'.'+ext;const {error}=await sb.storage.from('imagenes').upload(path,file,{upsert:true});if(error){toast('Error al subir: '+error.message,true);return;}const {data}=sb.storage.from('imagenes').getPublicUrl(path);document.getElementById(targetId).value=data.publicUrl;document.getElementById('prev'+targetId).innerHTML=`<img src="${data.publicUrl}">`;toast('Imagen lista ✓');}
 
 window.addEventListener('hashchange',()=>{if(location.hash==='#admin')mostrarAdmin();else mostrarCliente();});
