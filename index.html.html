@@ -203,6 +203,7 @@
       <div class="dir" id="cDir"></div>
     </div>
   </header>
+  <div id="barraSeguir" class="oculto" onclick="abrirSeguimiento()" style="background:var(--tomate);color:#fff;text-align:center;padding:11px;font-weight:700;cursor:pointer;font-family:Fredoka">📦 Sigue el estado de tu pedido</div>
   <div class="marca-oculta oculto" id="cMarca">🍔 Nita</div>
   <nav class="chips" id="cChips"></nav>
   <div class="minicart esc" id="cMini" onclick="abrirPedido()"><span><span id="bCnt2">0</span> producto(s) · <b id="bTot2">$0</b></span><span class="vp">Ver pedido →</span></div>
@@ -280,6 +281,13 @@
     </div>
   </div>
 
+  <div class="overlay centro" id="ovSeguir" onclick="if(event.target===this)cerrar('ovSeguir')">
+    <div class="panel mini" style="text-align:center">
+      <h2 style="justify-content:space-between">Estado de tu pedido <button class="cerrar" onclick="cerrar('ovSeguir')">×</button></h2>
+      <div id="seguirContenido" style="padding:20px 0"></div>
+      <button class="btn gris" style="width:100%" onclick="cerrar('ovSeguir')">Cerrar</button>
+    </div>
+  </div>
   <div class="overlay centro" id="ovHorarios" onclick="if(event.target===this)cerrar('ovHorarios')">
     <div class="panel mini"><h2 style="justify-content:space-between">Horarios <button class="cerrar" onclick="cerrar('ovHorarios')">×</button></h2><div id="horariosLista" style="text-align:left;margin-top:8px"></div></div>
   </div>
@@ -311,6 +319,8 @@ function toast(msg, err=false){const t=document.getElementById('toast');t.textCo
 
 let CFG={}, CATS=[], PRODS=[], MODS=[];
 let carrito={}, tipoPedido=null, opcProducto=null, catFiltro='todas', METODOS=[], BARRIOS=[], CONFIG={};
+function guardarCarrito(){try{const simple={};for(const k in carrito){const it=carrito[k];simple[k]={pid:it.prod.id,opciones:it.opciones,qty:it.qty};}localStorage.setItem('nita_carrito',JSON.stringify(simple));}catch(e){}}
+function restaurarCarrito(){try{const s=JSON.parse(localStorage.getItem('nita_carrito')||'null');if(!s)return;for(const k in s){const it=s[k];const prod=PRODS.find(p=>p.id===it.pid);if(prod)carrito[k]={prod,opciones:it.opciones||[],qty:it.qty||1};}actualizarBarra();}catch(e){}}
 let descuentoPct=0, datosAplicados=false;
 
 const DIAS=['dom','lun','mar','mie','jue','vie','sab'];
@@ -354,7 +364,7 @@ async function arrancar(){
 }
 function irAdmin(){location.hash='#admin';mostrarAdmin();}
 function irCliente(){location.hash='';mostrarCliente();}
-function mostrarCliente(){document.getElementById('admin').classList.add('oculto');document.getElementById('cliente').classList.remove('oculto');aplicarTema();renderCliente();}
+function mostrarCliente(){document.getElementById('admin').classList.add('oculto');document.getElementById('cliente').classList.remove('oculto');aplicarTema();renderCliente();restaurarCarrito();mostrarBotonSeguimiento();}
 async function mostrarAdmin(){document.getElementById('cliente').classList.add('oculto');document.getElementById('admin').classList.remove('oculto');const {data}=await sb.auth.getSession();if(data.session){document.getElementById('admLogin').classList.add('oculto');document.getElementById('admPanel').classList.remove('oculto');const a=document.getElementById('audioPedido');if(a&&CFG.sonido_url)a.src=CFG.sonido_url;else if(a)a.src='https://actions.google.com/sounds/v1/alarms/beep_short.ogg';renderAdmin();iniciarVigilancia();}else{document.getElementById('admLogin').classList.remove('oculto');document.getElementById('admPanel').classList.add('oculto');}}
 
 function renderCliente(){
@@ -474,6 +484,7 @@ function actualizarBarra(){
   document.getElementById('bCnt2').textContent=n;document.getElementById('bTot2').textContent=st;
   document.getElementById('cBarra').classList.toggle('esc',n===0);
   document.getElementById('cMini').classList.toggle('esc',n===0);
+  guardarCarrito();
 }
 async function abrirPedido(){
   if(totalItems()===0)return;
@@ -493,7 +504,7 @@ function renderDatosRapidos(){
     cont.innerHTML=`<div class="datos-rapidos"><div class="dt">¿Pedir como ${d.nombre}?</div><div class="dl">📞 ${d.telefono}${d.direccion?'<br>📍 '+d.direccion:''}</div><div class="db"><button class="btn verde" onclick="usarDatos()">Usar estos datos</button><button class="btn gris" onclick="datosAplicados=true;pintarPedido()">Usar otros</button></div></div>`;
   } else cont.innerHTML='';
 }
-function usarDatos(){const d=datosGuardados();if(!d)return;document.getElementById('cNombre').value=d.nombre||'';document.getElementById('cTel').value=d.telefono||'';if(d.direccion){document.getElementById('cDirInput').value=d.direccion;}datosAplicados=true;chequearDescuento();pintarPedido();}
+function usarDatos(){const d=datosGuardados();if(!d)return;document.getElementById('cNombre').value=d.nombre||'';document.getElementById('cTel').value=d.telefono||'';if(d.direccion){const di=document.getElementById('cDirInput');if(di)di.value=d.direccion;}datosAplicados=true;chequearDescuento();pintarPedido();validar();}
 
 function pintarPedido(){
   document.getElementById('avisoCerradoPedido').innerHTML=estadoAbierto().abierto?'':'<div class="aviso-cerrado">⏰ Estamos cerrados. Tu pedido quedará programado para cuando abramos.</div>';
@@ -515,7 +526,7 @@ function pintarPedido(){
 function elegirTipo(el){document.querySelectorAll('#ovPedido .tipo').forEach(t=>t.classList.remove('sel'));el.classList.add('sel');tipoPedido=el.dataset.tipo;const esDom=tipoPedido==='A domicilio';document.getElementById('campoDir').classList.toggle('oculto',!esDom);document.getElementById('campoBarrio').classList.toggle('oculto',!esDom);if(esDom)pintarBarrios();pintarPedido();}
 ['cNombre','cTel','cDirInput'].forEach(id=>document.getElementById(id).addEventListener('input',validar));
 document.getElementById('cTel').addEventListener('blur',()=>{chequearDescuento();});
-function validar(){const n=document.getElementById('cNombre').value.trim(),t=document.getElementById('cTel').value.trim(),d=document.getElementById('cDirInput').value.trim();let ok=totalItems()>0&&tipoPedido&&n&&t;if(tipoPedido==='A domicilio'&&!d)ok=false;document.getElementById('btnConfirmar').disabled=!ok;}
+function validar(){const n=document.getElementById('cNombre').value.trim(),t=document.getElementById('cTel').value.trim(),d=document.getElementById('cDirInput')?document.getElementById('cDirInput').value.trim():'';let ok=totalItems()>0&&tipoPedido&&n&&t&&metodoSel;if(tipoPedido==='A domicilio'&&!d)ok=false;const btn=document.getElementById('btnConfirmar');if(btn)btn.disabled=!ok;}
 
 async function chequearDescuento(){
   descuentoPct=0;
@@ -591,8 +602,9 @@ async function confirmarPedido(){
   const detalle=items().map(it=>({nombre:it.prod.nombre,qty:it.qty,precio:precioUnit(it),opciones:it.opciones.map(o=>o.qty>1?o.nombre+' x'+o.qty:o.nombre)}));
   const pedido={tipo:tipoPedido,cliente:nombre,telefono:tel,direccion:tipoPedido==='A domicilio'?dir:'',notas:(cerrado?'[PROGRAMADO - cerrado] ':'')+notas,items:detalle,subtotal:subtotal(),domicilio:domicilio(),total:totalFinal(),estado:'nuevo',metodo_pago:metodoSel.nombre,barrio:barrio,efectivo:efectivoTxt};
   if(desc>0) pedido.descuento=desc;
-  const {error}=await sb.from('pedidos').insert(pedido);
+  const {data:ins,error}=await sb.from('pedidos').insert(pedido).select('id').single();
   if(error){toast('Error al guardar: '+error.message,true);btn.disabled=false;btn.textContent='✅ Confirmar pedido';return;}
+  if(ins&&ins.id)localStorage.setItem('nita_pedido_seguir',ins.id);
   guardarDatos({nombre,telefono:tel,direccion:tipoPedido==='A domicilio'?dir:(datosGuardados()&&datosGuardados().direccion)||''});
   if(CFG.whatsapp){
     let m=`🍔 *NUEVO PEDIDO - NITA*\n`;
@@ -610,7 +622,7 @@ async function confirmarPedido(){
     m+=`*TOTAL: ${pesos(pedido.total)}*`;
     window.open(`https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent(m)}`,'_blank');
   }
-  carrito={};tipoPedido=null;descuentoPct=0;metodoSel=null;cerrar('ovPedido');btn.textContent='✅ Confirmar pedido';toast('¡Pedido enviado! 🎉');
+  carrito={};tipoPedido=null;descuentoPct=0;metodoSel=null;localStorage.removeItem('nita_carrito');cerrar('ovPedido');btn.textContent='✅ Confirmar pedido';toast('¡Pedido enviado! 🎉');mostrarBotonSeguimiento();
 }
 
 function abrirHorarios(){const cont=document.getElementById('horariosLista');const hoy=bogotaNow().dia;cont.innerHTML=ORDEN_DIAS.map(d=>{const h=horarios()[d];const txt=h&&h.activo?`${h.abre} – ${h.cierra}`:'Cerrado';return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--linea);${d===hoy?'font-weight:700':''}"><span>${DIAS_NOM[d]}${d===hoy?' (hoy)':''}</span><span>${txt}</span></div>`;}).join('');document.getElementById('ovHorarios').classList.add('activo');}
@@ -622,7 +634,17 @@ async function logout(){await sb.auth.signOut();mostrarAdmin();}
 let adTab='pedidos';
 function renderAdmin(){const tabs=[['pedidos','📋 Pedidos'],['productos','🍔 Productos'],['categorias','🏷️ Categorías'],['modificadores','➕ Modificadores'],['ajustes','⚙️ Ajustes']];document.getElementById('admTabs').innerHTML=tabs.map(([id,n])=>`<div class="admtab ${adTab===id?'sel':''}" onclick="adTab='${id}';renderAdmin()">${n}</div>`).join('');({pedidos:tabPedidos,productos:tabProductos,categorias:tabCategorias,modificadores:tabModificadores,ajustes:tabAjustes}[adTab])();}
 async function recargar(){await cargarTodo();aplicarTema();renderAdmin();}
-async function tabPedidos(){const b=document.getElementById('admBody');b.innerHTML='<p class="vacio">Cargando…</p>';const {data,error}=await sb.from('pedidos').select('*').or('completado.is.null,completado.eq.false').order('creado_en',{ascending:false}).limit(100);if(error){b.innerHTML='<p class="vacio">Error: '+error.message+'</p>';return;}if(!data.length){b.innerHTML='<div class="fila-btns"><button class="btn gris" onclick="tabPedidos()">🔄 Actualizar</button></div><p class="vacio">No hay pedidos pendientes.</p>';return;}b.innerHTML=`<div class="fila-btns"><button class="btn gris" onclick="tabPedidos()">🔄 Actualizar</button></div>`+data.map(p=>{const items=(p.items||[]).map(i=>`<li>${i.qty}x ${i.nombre}${i.opciones&&i.opciones.length?' ('+i.opciones.join(', ')+')':''}</li>`).join('');const fecha=new Date(p.creado_en).toLocaleString('es-CO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});return `<div class="ped"><div class="ph"><div><b>${p.cliente||'-'}</b> · ${p.tipo||''}<br><small style="color:var(--apagado)">${fecha} · 📞 ${p.telefono||'-'}</small>${p.direccion?`<br><small style="color:var(--apagado)">📍 ${p.direccion}</small>`:''}${p.barrio?`<br><small style="color:var(--apagado)">🏘️ ${p.barrio}</small>`:''}${p.metodo_pago?`<br><small style="color:var(--apagado)">💳 ${p.metodo_pago}${p.efectivo?' · '+p.efectivo:''}</small>`:''}</div><span class="estado e-${p.estado}">${(p.estado||'').toUpperCase()}</span></div><ul>${items}</ul>${p.notas?`<small style="color:var(--apagado)">📝 ${p.notas}</small>`:''}<div class="pt">${pesos(p.total)}</div><div class="pacc"><button class="btn verde" onclick="estadoPedido(${p.id},'aceptado')">✓ Aceptar</button><button class="btn azul" onclick="terminarPedido(${p.id})">🏁 Terminado</button><button class="iconbtn" onclick="borrarPedido(${p.id})">🗑️</button></div></div>`;}).join('');}
+async function tabPedidos(){const b=document.getElementById('admBody');b.innerHTML='<p class="vacio">Cargando…</p>';const {data,error}=await sb.from('pedidos').select('*').or('completado.is.null,completado.eq.false').order('creado_en',{ascending:false}).limit(100);if(error){b.innerHTML='<p class="vacio">Error: '+error.message+'</p>';return;}
+  const ahora=Date.now();
+  const visibles=(data||[]).filter(p=>{if(p.estado==='enviado'&&p.terminado_en){return (ahora-new Date(p.terminado_en).getTime())<25*60*1000;}return true;});
+  if(!visibles.length){b.innerHTML='<div class="fila-btns"><button class="btn gris" onclick="tabPedidos()">🔄 Actualizar</button></div><p class="vacio">No hay pedidos pendientes.</p>';return;}
+  b.innerHTML=`<div class="fila-btns"><button class="btn gris" onclick="tabPedidos()">🔄 Actualizar</button></div>`+visibles.map(p=>{const items=(p.items||[]).map(i=>`<li>${i.qty}x ${i.nombre}${i.opciones&&i.opciones.length?' ('+i.opciones.join(', ')+')':''}</li>`).join('');const fecha=new Date(p.creado_en).toLocaleString('es-CO',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const estLabel=p.estado==='enviado'?'PEDIDO ENVIADO':(p.estado==='camino'?'EN CAMINO':(p.estado||'').toUpperCase());
+  let acciones;
+  if(p.estado==='enviado'){acciones=`<small style="color:var(--apagado)">Se ocultará solo en 25 min</small>`;}
+  else{acciones=`<button class="btn verde" onclick="estadoPedido(${p.id},'aceptado')">👨‍🍳 Aceptar (cocina)</button><button class="btn azul" onclick="estadoPedido(${p.id},'camino')">🛵 En camino</button><button class="btn gris" onclick="terminarPedido(${p.id})">🏁 Terminado</button><button class="iconbtn" onclick="borrarPedido(${p.id})">🗑️</button>`;}
+  return `<div class="ped"><div class="ph"><div><b>${p.cliente||'-'}</b> · ${p.tipo||''}<br><small style="color:var(--apagado)">${fecha} · 📞 ${p.telefono||'-'}</small>${p.direccion?`<br><small style="color:var(--apagado)">📍 ${p.direccion}</small>`:''}${p.barrio?`<br><small style="color:var(--apagado)">🏘️ ${p.barrio}</small>`:''}${p.metodo_pago?`<br><small style="color:var(--apagado)">💳 ${p.metodo_pago}${p.efectivo?' · '+p.efectivo:''}</small>`:''}</div><span class="estado e-${p.estado}">${estLabel}</span></div><ul>${items}</ul>${p.notas?`<small style="color:var(--apagado)">📝 ${p.notas}</small>`:''}<div class="pt">${pesos(p.total)}</div><div class="pacc">${acciones}</div></div>`;}).join('');}
+async function terminarPedido(id){if(!confirm('¿Marcar como "Pedido enviado"? El cliente verá entregado y se ocultará en 25 minutos.'))return;await sb.from('pedidos').update({estado:'enviado',completado:true,terminado_en:new Date().toISOString()}).eq('id',id);toast('Pedido enviado ✓');tabPedidos();}
 async function terminarPedido(id){if(!confirm('¿Marcar pedido como terminado? Desaparecerá de la lista.'))return;await sb.from('pedidos').update({completado:true,estado:'entregado'}).eq('id',id);toast('Pedido terminado ✓');tabPedidos();}
 async function estadoPedido(id,estado){await sb.from('pedidos').update({estado}).eq('id',id);tabPedidos();}
 async function borrarPedido(id){if(!confirm('¿Borrar este pedido?'))return;await sb.from('pedidos').delete().eq('id',id);tabPedidos();}
@@ -710,6 +732,7 @@ function seleccionarMetodo(id){
   document.querySelectorAll('#metodos-pago-cliente .tipo').forEach(t=>t.classList.remove('sel'));
   const el=document.querySelector('[data-metodo="'+id+'"]'); if(el)el.classList.add('sel');
   pintarCamposDinamicos();
+  validar();
 }
 function pintarCamposDinamicos(){
   const dinDiv=document.getElementById('campos-metodo-dinamicos'); if(!dinDiv)return;
@@ -774,6 +797,33 @@ function iniciarVigilancia(){
   if(intervaloVigilancia)clearInterval(intervaloVigilancia);
   sb.from('pedidos').select('id').order('id',{ascending:false}).limit(1).then(({data})=>{if(data&&data.length)ultimoPedidoId=data[0].id;});
   intervaloVigilancia=setInterval(vigilarPedidos,8000);
+}
+function mostrarBotonSeguimiento(){
+  const id=localStorage.getItem('nita_pedido_seguir');
+  const barra=document.getElementById('barraSeguir');
+  if(barra)barra.classList.toggle('oculto',!id);
+}
+async function abrirSeguimiento(){
+  const id=localStorage.getItem('nita_pedido_seguir');
+  if(!id)return;
+  const cont=document.getElementById('seguirContenido');
+  cont.innerHTML='<p style="color:var(--apagado)">Consultando…</p>';
+  document.getElementById('ovSeguir').classList.add('activo');
+  await pintarSeguimiento();
+  if(window._segInt)clearInterval(window._segInt);
+  window._segInt=setInterval(pintarSeguimiento,10000);
+}
+async function pintarSeguimiento(){
+  const id=localStorage.getItem('nita_pedido_seguir'); if(!id)return;
+  const cont=document.getElementById('seguirContenido');
+  const {data,error}=await sb.from('pedidos').select('estado,completado,cliente').eq('id',id).single();
+  if(error||!data){cont.innerHTML='<p style="color:var(--apagado)">No encontramos tu pedido.</p>';return;}
+  let color,texto,emoji;
+  if(data.completado){color='#9ca3af';texto='Pedido entregado';emoji='✅';localStorage.removeItem('nita_pedido_seguir');setTimeout(mostrarBotonSeguimiento,2000);}
+  else if(data.estado==='aceptado'){color='#16a34a';texto='Aceptado y en cocina';emoji='👨‍🍳';}
+  else if(data.estado==='camino'){color='#2563eb';texto='Tu pedido está en camino';emoji='🛵';}
+  else{color='#f59e0b';texto='Pedido recibido, esperando confirmación';emoji='⏳';}
+  cont.innerHTML=`<div style="font-size:3rem;margin-bottom:10px">${emoji}</div><div style="background:${color};color:#fff;padding:16px;border-radius:14px;font-family:Fredoka;font-weight:700;font-size:1.1rem">${texto}</div>`;
 }
 arrancar().then(()=>{ if(location.hash!=='#admin') setTimeout(mostrarPopupCerrado,400); });
 </script>
