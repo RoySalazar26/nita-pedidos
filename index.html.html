@@ -319,8 +319,8 @@ function toast(msg, err=false){const t=document.getElementById('toast');t.textCo
 
 let CFG={}, CATS=[], PRODS=[], MODS=[];
 let carrito={}, tipoPedido=null, opcProducto=null, catFiltro='todas', METODOS=[], BARRIOS=[], CONFIG={};
-function guardarCarrito(){try{const simple={};for(const k in carrito){const it=carrito[k];simple[k]={pid:it.prod.id,opciones:it.opciones,qty:it.qty};}localStorage.setItem('nita_carrito',JSON.stringify(simple));}catch(e){}}
-function restaurarCarrito(){try{const s=JSON.parse(localStorage.getItem('nita_carrito')||'null');if(!s)return;for(const k in s){const it=s[k];const prod=PRODS.find(p=>p.id===it.pid);if(prod)carrito[k]={prod,opciones:it.opciones||[],qty:it.qty||1};}actualizarBarra();}catch(e){}}
+function guardarCarrito(){try{const simple={};for(const k in carrito){const it=carrito[k];simple[k]={prod:it.prod,opciones:it.opciones,qty:it.qty};}localStorage.setItem('nita_carrito',JSON.stringify(simple));}catch(e){}}
+function restaurarCarrito(){try{const s=JSON.parse(localStorage.getItem('nita_carrito')||'null');if(!s)return;let algo=false;for(const k in s){const it=s[k];let prod=it.prod;if(it.pid)prod=PRODS.find(p=>p.id===it.pid)||prod;if(prod){carrito[k]={prod,opciones:it.opciones||[],qty:it.qty||1};algo=true;}}if(algo)actualizarBarra();}catch(e){}}
 let descuentoPct=0, datosAplicados=false;
 
 const DIAS=['dom','lun','mar','mie','jue','vie','sab'];
