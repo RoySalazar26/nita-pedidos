@@ -601,7 +601,7 @@ async function confirmarPedido(){
   btn.disabled=true;btn.textContent='Enviando…';
   const cerrado=!estadoAbierto().abierto; const desc=descuento();
   const detalle=items().map(it=>({nombre:it.prod.nombre,qty:it.qty,precio:precioUnit(it),base:it.prod.precio,opciones:it.opciones.map(o=>({nombre:o.qty>1?o.nombre+' x'+o.qty:o.nombre,precio:(o.precio||0)*(o.qty||1)}))}));
-  const pedido={tipo:tipoPedido,cliente:nombre,telefono:tel,direccion:tipoPedido==='A domicilio'?dir:'',notas:(cerrado?'[PROGRAMADO - cerrado] ':'')+notas,items:detalle,subtotal:subtotal(),domicilio:domicilio(),total:totalFinal(),estado:'nuevo',metodo_pago:metodoSel.nombre,barrio:barrio,efectivo:efectivoTxt};
+  const pedido={tipo:tipoPedido,cliente:nombre,telefono:tel,direccion:tipoPedido==='A domicilio'?dir:'',notas:(cerrado?'[PROGRAMADO - cerrado] ':'')+notas,items:detalle,subtotal:subtotal(),domicilio:domicilio(),total:totalFinal(),estado:'nuevo',metodo_pago:metodoSel.nombre,barrio:barrio,efectivo:efectivoTxt,en_pos:false,impreso:false};
   if(desc>0) pedido.descuento=desc;
   let insertId=null;
   const resp=await sb.from('pedidos').insert(pedido).select('id').single();
